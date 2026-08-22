@@ -1,0 +1,78 @@
+---
+// A facet is a single-select filter menu (e.g. category, approach). Cards
+// are matched by AND across facets: a card must match the active option
+// (or "all") in every facet to stay visible.
+interface FacetOption {
+  slug: string;
+  label: string;
+}
+
+interface Facet {
+  key: string; // matches the card's data-{key} attribute
+  label: string;
+  options: readonly FacetOption[];
+}
+
+interface Props {
+  facets: Facet[];
+}
+
+const { facets } = Astro.props;
+---
+
+<div class="filter-bar mb-6 flex flex-col gap-4">
+  {facets.map((facet) => (
+    <div>
+      <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">{facet.label}</div>
+      <div class="flex flex-wrap gap-2" data-facet={facet.key}>
+        <button data-filter-value="all" class="filter-btn active">All</button>
+        {facet.options.map((option) => (
+          <button data-filter-value={option.slug} class="filter-btn">{option.label}</button>
+        ))}
+      </div>
+    </div>
+  ))}
+</div>
+
+<style>
+  .filter-btn {
+    border-radius: 9999px;
+    border: 1px solid #d1d5db;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    background: white;
+    cursor: pointer;
+  }
+  .filter-btn.active {
+    border-color: #111827;
+    background: #111827;
+    color: white;
+  }
+</style>
+
+<script>
+  const facetGroups = document.querySelectorAll<HTMLElement>('[data-facet]');
+  const active = new Map<string, string>();
+
+  facetGroups.forEach((group) => {
+    const key = group.dataset.facet!;
+    active.set(key, 'all');
+
+    group.querySelectorAll<HTMLButtonElement>('[data-filter-value]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        active.set(key, btn.dataset.filterValue!);
+        group.querySelectorAll('[data-filter-value]').forEach((b) => b.classList.toggle('active', b === btn));
+        applyFilters();
+      });
+    });
+  });
+
+  function applyFilters() {
+    document.querySelectorAll<HTMLElement>('[data-card]').forEach((card) => {
+      const matches = [...active.entries()].every(([key, value]) => {
+        return value === 'all' || card.getAttribute(`data-${key}`) === value;
+      });
+      card.style.display = matches ? '' : 'none';
+    });
+  }
+</script>

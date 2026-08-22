@@ -1,0 +1,31 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import EmailCard from '../components/EmailCard.astro';
+import FilterBar from '../components/FilterBar.astro';
+import { CATEGORIES, APPROACHES } from '../data/taxonomy';
+
+const entries = await getCollection('emails');
+
+const FACETS = [
+  { key: 'category', label: 'Topic', options: CATEGORIES },
+  { key: 'approach', label: 'Outreach type', options: APPROACHES },
+];
+---
+
+<Base title="Email Library">
+  <h1 class="text-3xl font-semibold">Student outreach emails that worked</h1>
+  <p class="mt-2 max-w-2xl text-gray-600">
+    Real cold emails — to professors, for internships, for podcast and event
+    invites — with annotations explaining the moves each one makes. All
+    identifying details are replaced with bracketed placeholders.
+  </p>
+
+  <div class="mt-6">
+    <FilterBar facets={FACETS} />
+  </div>
+
+  <div class="grid gap-4 sm:grid-cols-2">
+    {entries.map((entry) => <EmailCard entry={entry} />)}
+  </div>
+</Base>

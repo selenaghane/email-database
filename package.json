@@ -1,0 +1,24 @@
+{
+  "name": "email-database",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "validate": "node scripts/validate-annotations.mjs",
+    "build": "npm run validate && astro check && astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^5.1.0",
+    "@astrojs/tailwind": "^5.1.4",
+    "tailwindcss": "^3.4.15"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "gray-matter": "^4.0.3",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,106 @@
+---
+interface Annotation {
+  quote: string;
+  note: string;
+}
+
+interface Props {
+  body: string;
+  annotations: Annotation[];
+}
+
+const { body, annotations } = Astro.props;
+
+// Locate each annotation in the raw body text so highlights land on exact
+// substrings. Validation (scripts/validate-annotations.mjs) already
+// guarantees every quote exists in body at build time; `start !== -1` here
+// is just a defensive filter, not the enforcement mechanism.
+const located = annotations
+  .map((a, i) => ({ ...a, index: i, start: body.indexOf(a.quote) }))
+  .filter((a) => a.start !== -1)
+  .sort((a, b) => a.start - b.start);
+
+type Segment = { text: string; annotation?: (typeof located)[number] };
+const segments: Segment[] = [];
+let cursor = 0;
+for (const item of located) {
+  if (item.start < cursor) continue; // overlapping quote — skip rather than corrupt output
+  if (item.start > cursor) {
+    segments.push({ text: body.slice(cursor, item.start) });
+  }
+  segments.push({ text: item.quote, annotation: item });
+  cursor = item.start + item.quote.length;
+}
+if (cursor < body.length) {
+  segments.push({ text: body.slice(cursor) });
+}
+---
+
+<div class="annotated-body whitespace-pre-wrap font-mono text-sm leading-relaxed">
+  {segments.map((seg) =>
+    seg.annotation ? (
+      <mark
+        tabindex="0"
+        class="annotation-mark"
+        data-note={seg.annotation.note}
+        aria-describedby={`note-${seg.annotation.index}`}
+      >{seg.text}<sup class="annotation-index">{seg.annotation.index + 1}</sup></mark>
+    ) : (
+      seg.text
+    )
+  )}
+</div>
+
+<ol class="annotation-list mt-6 space-y-3 text-sm">
+  {annotations.map((a, i) => (
+    <li id={`note-${i}`} class="border-l-2 border-gray-300 pl-3">
+      <span class="font-semibold">{i + 1}.</span>
+      <span class="mt-0.5 block italic text-gray-500">&ldquo;{a.quote}&rdquo;</span>
+      <span class="block text-gray-700">{a.note}</span>
+    </li>
+  ))}
+</ol>
+
+<style>
+  .annotation-mark {
+    background-color: #fef08a;
+    cursor: help;
+    position: relative;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  .annotation-mark:hover,
+  .annotation-mark:focus {
+    background-color: #fde047;
+    outline: none;
+  }
+  .annotation-index {
+    font-size: 0.6em;
+    vertical-align: super;
+    margin-left: 1px;
+    color: #78350f;
+  }
+  .annotation-mark::after {
+    content: attr(data-note);
+    position: absolute;
+    left: 0;
+    bottom: 100%;
+    transform: translateY(-4px);
+    background: #111827;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: normal;
+    width: max-content;
+    max-width: 240px;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease;
+  }
+  .annotation-mark:hover::after,
+  .annotation-mark:focus::after {
+    opacity: 1;
+  }
+</style>

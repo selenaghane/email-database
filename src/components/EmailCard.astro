@@ -1,0 +1,25 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { getCategoryLabel, getApproachLabel } from '../data/taxonomy';
+import { withBase } from '../lib/url';
+
+interface Props {
+  entry: CollectionEntry<'emails'>;
+}
+
+const { entry } = Astro.props;
+const { category, approach, context } = entry.data;
+---
+
+<a
+  href={withBase(`emails/${entry.slug}/`)}
+  data-card
+  data-category={category}
+  data-approach={approach}
+  class="block rounded-lg border border-gray-200 p-4 transition-colors hover:border-gray-400"
+>
+  <div class="text-xs uppercase tracking-wide text-gray-500">
+    {getCategoryLabel(category)} · {getApproachLabel(approach)}
+  </div>
+  <p class="mt-2 text-sm text-gray-700">{context}</p>
+</a>
