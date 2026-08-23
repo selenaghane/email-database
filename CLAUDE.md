@@ -14,9 +14,10 @@ There is a separate `outcome` field (see Data model) for what happened
 - `astro.config.mjs` has `site`/`base` placeholders — update them once the
   real GitHub username/repo is known.
 - Content lives as markdown files with YAML frontmatter in
-  `src/content/emails/`. Submissions currently come in through a Google Form
-  and are turned into these files by hand (or by a script you write later) —
-  there is no live ingestion path.
+  `src/content/emails/`. Submissions come in through `/submit` (a Web3Forms-
+  backed form) or by forwarding to a contact email — see Submission flow
+  below. Either way, they are turned into content files by hand; there is no
+  automated ingestion path.
 
 ## Data model (`src/content/config.ts`)
 
@@ -110,6 +111,45 @@ frontmatter. If you change how `body` is stored, update this script too.
   claims. When writing or reviewing annotations, if a note reads like a
   claim about the recipient's motivation rather than a description of the
   email's structure, rewrite it.
+
+## Submission flow
+
+`src/pages/submit.astro` is a form, not a content pipeline — it collects raw
+submissions for a human to read, it does not publish anything by itself.
+
+- **Where the key lives.** The form posts client-side (no backend) to
+  Web3Forms using `PUBLIC_WEB3FORMS_KEY`, read via
+  `import.meta.env.PUBLIC_WEB3FORMS_KEY` and injected into the page's inline
+  script with Astro's `define:vars`. Locally it comes from `.env` (gitignored,
+  see `.env.example` for the template); in CI it comes from the
+  `PUBLIC_WEB3FORMS_KEY` GitHub Actions repository secret, wired into the
+  build step's `env:` in `.github/workflows/deploy.yml`. Because this is a
+  static site with no server, the key ships inside the public JS bundle —
+  that's expected for Web3Forms (the key is rate-limited/domain-checked on
+  their end, not a server secret), not a bug to fix.
+- **What the form collects:** `category`, `priorContact` (maps to the
+  content schema's `approach` — options pulled from `APPROACHES` in
+  `src/data/taxonomy.ts`, never retyped), `context`, `emailSubject`
+  (optional), `body`, `creditPreference` (full name / first name only /
+  anonymous), `displayName` (hidden when anonymous), `submitterEmail`, plus
+  four required consent checkboxes and a `botcheck` honeypot field.
+- **What it deliberately does NOT collect:** annotations (the site owner
+  writes those), anything about the recipient, or the recipient's reply.
+  There is no field for any of these — this is a UI-level omission on the
+  form, separate from (and in addition to) the schema-level enforcement in
+  `src/content/config.ts`.
+- **The alternate path** — forwarding the raw email to the contact address
+  shown on `/submit` — carries the exact same rule below; the intake channel
+  doesn't matter.
+- **Hard rule: submissions are unreviewed input, never a content file.**
+  Every Web3Forms/email submission must be manually rewritten into a new
+  `src/content/emails/<slug>.md` file by hand — placeholders substituted,
+  recipient reply and signoff-and-below stripped, annotations written by the
+  site owner — and pass `npm run validate` like any other addition, before
+  it's ever committed. Never wire a submission into a content file
+  automatically or unread; the "never publish recipient replies" and
+  "placeholders only" hard constraints above apply just as much to
+  submitted content as to anything else.
 
 ## Adding a new email
 

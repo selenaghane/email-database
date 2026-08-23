@@ -4,6 +4,7 @@ import Base from '../layouts/Base.astro';
 import EmailCard from '../components/EmailCard.astro';
 import FilterBar from '../components/FilterBar.astro';
 import { CATEGORIES, APPROACHES } from '../data/taxonomy';
+import { withBase } from '../lib/url';
 
 const entries = await getCollection('emails');
 
@@ -14,12 +15,22 @@ const FACETS = [
 ---
 
 <Base title="Email Library">
-  <h1 class="text-3xl font-semibold">Student outreach emails that worked</h1>
-  <p class="mt-2 max-w-2xl text-gray-600">
-    Real emails to professors, for internships, and for podcast and event
-    invites, with annotations explaining the moves each one makes.
-    (Personal information removed).
-  </p>
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-semibold">Student outreach emails that worked</h1>
+      <p class="mt-2 max-w-2xl text-gray-600">
+        Real emails to professors, for internships, and for podcast and event
+        invites, with annotations explaining the moves each one makes.
+        (Personal information removed).
+      </p>
+    </div>
+    <a
+      href={withBase('submit/')}
+      class="shrink-0 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-900 hover:text-gray-900"
+    >
+      Submit an email
+    </a>
+  </div>
 
   <div class="mt-6">
     <FilterBar facets={FACETS} />
