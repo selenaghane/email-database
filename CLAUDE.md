@@ -129,27 +129,32 @@ submissions for a human to read, it does not publish anything by itself.
   their end, not a server secret), not a bug to fix.
 - **What the form collects:** `category`, `priorContact` (maps to the
   content schema's `approach` — options pulled from `APPROACHES` in
-  `src/data/taxonomy.ts`, never retyped), `context`, `emailSubject`
-  (optional), `body`, `creditPreference` (full name / first name only /
-  anonymous), `displayName` (hidden when anonymous), `submitterEmail`, plus
-  four required consent checkboxes and a `botcheck` honeypot field.
-- **What it deliberately does NOT collect:** annotations (the site owner
-  writes those), anything about the recipient, or the recipient's reply.
-  There is no field for any of these — this is a UI-level omission on the
-  form, separate from (and in addition to) the schema-level enforcement in
-  `src/content/config.ts`.
+  `src/data/taxonomy.ts`, never retyped), `emailSubject` (required), `body`,
+  `displayName` (optional — free text, "leave blank" is a valid answer for
+  anonymous credit; there is no separate credit-preference enum), and
+  `submitterEmail`, plus four required consent checkboxes and a `botcheck`
+  honeypot field. There is no `context` field on the form — the site owner
+  writes `context` by hand during publishing, same as `annotations`.
+- **The form does not ask the submitter to redact or delete anything.**
+  The guidance above the body field explicitly says they may self-censor
+  identifying details if they want, or just paste the email exactly as they
+  have it — including the recipient's reply, if it's easier to paste the
+  whole thread — and it will be censored before publishing. This is a
+  deliberate choice to lower submission friction: the redaction and
+  reply-stripping work moved from the submitter to the site owner. It did
+  not disappear.
+- **Consequence: raw submissions may contain the recipient's reply and
+  real identifying details.** That's expected and fine for an unreviewed
+  submission sitting in an inbox — it is not fine in a content file. The
+  "never publish recipient replies" and "placeholders only" hard
+  constraints above apply in full when converting a submission into
+  `src/content/emails/<slug>.md`: strip the reply and everything from the
+  signoff onward, substitute placeholders, and write `context` and
+  `annotations` by hand, before running `npm run validate` and committing.
+  Never wire a submission into a content file automatically or unread.
 - **The alternate path** — forwarding the raw email to the contact address
-  shown on `/submit` — carries the exact same rule below; the intake channel
-  doesn't matter.
-- **Hard rule: submissions are unreviewed input, never a content file.**
-  Every Web3Forms/email submission must be manually rewritten into a new
-  `src/content/emails/<slug>.md` file by hand — placeholders substituted,
-  recipient reply and signoff-and-below stripped, annotations written by the
-  site owner — and pass `npm run validate` like any other addition, before
-  it's ever committed. Never wire a submission into a content file
-  automatically or unread; the "never publish recipient replies" and
-  "placeholders only" hard constraints above apply just as much to
-  submitted content as to anything else.
+  shown on `/submit` — carries the exact same rule; the intake channel
+  doesn't matter, only what ends up in the content file.
 
 ## Adding a new email
 
