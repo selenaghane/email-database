@@ -3,9 +3,9 @@
 A free, public library of real student outreach emails that worked — cold
 emails to professors, internship inquiries, podcast/event invites — with
 annotations explaining the moves each one makes. Every email in the
-collection worked (got a reply); there is no "no-reply"/outcome tracking —
-that was considered and deliberately removed. Don't reintroduce an
-outcome/reply-status field without confirming with the user first.
+collection worked (got a reply) — there is no "no-reply" filtering/category.
+There is a separate `outcome` field (see Data model) for what happened
+*after* the reply — a one-line factual result, not a reply-status tag.
 
 ## Stack
 
@@ -28,13 +28,22 @@ Per email, frontmatter holds:
 - `category` — `research-position | internship | podcast-invite |
   event-invite | other`. Fixed enum, not meant to be edited casually. This is
   the *topic* of the outreach (what it's about).
-- `approach` — `cold-email | follow-up | warm-connection`. Fixed enum. This
-  is *how* the sender reached the recipient — no prior contact, following up
-  on an earlier email/conversation, or through an existing personal
-  connection (e.g. a former camp/program instructor, a mutual contact).
-  Orthogonal to `category`: an internship inquiry and a podcast invite can
-  each be cold, a follow-up, or through a connection.
+- `approach` — `cold-email | attended-event | brief-meeting | taught-by |
+  referred`. Fixed enum. This is the sender's connection to the recipient
+  at the time of the email: no prior contact at all, having seen/heard them
+  at a talk or event, a brief in-person meeting (e.g. a conference, career
+  fair), the recipient having taught the sender directly, or an
+  introduction/referral from a mutual contact. Orthogonal to `category`: an
+  internship inquiry and a podcast invite can each use any of these.
 - `context` — 1–2 sentences: who sent it, what they were asking for.
+- `outcome` — optional, one concise line: what actually resulted (e.g.
+  "Recorded the episode; now published on [platform]."). Sender-side factual
+  summary of what happened next, not the recipient's reply text — still
+  subject to the "never publish recipient replies" and "placeholders only"
+  constraints below. Shown at the bottom of the detail page, omitted
+  entirely (no "Outcome" heading rendered) when absent. Optional because a
+  freshly added email may not have a known outcome yet — fill it in when
+  known.
 - `annotations` — array of `{ quote, note }`. No `tag` field — annotations
   are not categorized, just a highlighted quote plus a one-line note.
 
@@ -106,7 +115,7 @@ frontmatter. If you change how `body` is stored, update this script too.
 
 1. Create `src/content/emails/<slug>.md`.
 2. Frontmatter: `id` (= `<slug>`), `category`, `approach`, `context`,
-   `annotations` (each just `{ quote, note }`).
+   `outcome` (optional), `annotations` (each just `{ quote, note }`).
 3. Body: the email text below the frontmatter, placeholders substituted in.
 4. Make sure every annotation `quote` is copy-pasted verbatim from the body
    (exact substring, including punctuation/whitespace) — `npm run validate`

@@ -13,8 +13,10 @@ export const CATEGORIES = [
 
 export const APPROACHES = [
   { slug: 'cold-email', label: 'Cold email' },
-  { slug: 'follow-up', label: 'Follow-up' },
-  { slug: 'warm-connection', label: 'Warm connection' },
+  { slug: 'attended-event', label: 'Attended event' },
+  { slug: 'brief-meeting', label: 'Brief meeting' },
+  { slug: 'taught-by', label: 'Taught by' },
+  { slug: 'referred', label: 'Referred' },
 ] as const;
 
 export function getCategoryLabel(slug: string): string {

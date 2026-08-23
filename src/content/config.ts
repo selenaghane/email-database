@@ -25,11 +25,18 @@ const emailSchema = z
       'event-invite',
       'other',
     ]),
-    // How the sender reached the recipient: cold with no prior contact,
-    // following up on an earlier email/conversation, or through an existing
-    // connection (e.g. a former camp instructor, a mutual contact).
-    approach: z.enum(['cold-email', 'follow-up', 'warm-connection']),
+    // The sender's connection to the recipient at the time of this email:
+    // no prior contact, having seen/heard them at a talk or event, a brief
+    // in-person meeting (e.g. a conference, career fair), the recipient
+    // having taught the sender directly, or an introduction/referral from
+    // a mutual contact.
+    approach: z.enum(['cold-email', 'attended-event', 'brief-meeting', 'taught-by', 'referred']),
     context: z.string().min(1).max(400),
+    // What actually resulted, in one concise line (e.g. "Recorded the
+    // episode; published on [platform]."). Optional: a freshly added email
+    // may not have a known outcome yet. Not the recipient's reply text —
+    // just a factual, sender-side summary of what happened next.
+    outcome: z.string().min(1).max(200).optional(),
     annotations: z.array(annotationSchema).default([]),
   })
   .strict();

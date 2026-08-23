@@ -19,11 +19,11 @@ interface Props {
 }
 
 const { entry } = Astro.props;
-const { category, approach, context, annotations } = entry.data;
+const { category, approach, context, outcome, annotations } = entry.data;
 const body = entry.body;
 ---
 
-<Base title={`${getCategoryLabel(category)} email — Email Library`}>
+<Base title={`${getCategoryLabel(category)} email · Email Library`}>
   <a href={withBase('')} class="text-sm text-gray-500 hover:underline">&larr; Back to all emails</a>
 
   <div class="mt-4 text-xs uppercase tracking-wide text-gray-500">
@@ -35,4 +35,11 @@ const body = entry.body;
   <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
     <AnnotatedBody body={body} annotations={annotations} />
   </div>
+
+  {outcome && (
+    <div class="mt-6">
+      <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Outcome</div>
+      <p class="mt-1 text-gray-700">{outcome}</p>
+    </div>
+  )}
 </Base>

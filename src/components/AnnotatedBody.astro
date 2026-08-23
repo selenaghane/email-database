@@ -36,7 +36,7 @@ if (cursor < body.length) {
 }
 ---
 
-<div class="annotated-body whitespace-pre-wrap font-mono text-sm leading-relaxed">
+<div class="annotated-body whitespace-pre-wrap text-sm leading-relaxed">
   {segments.map((seg) =>
     seg.annotation ? (
       <mark
@@ -62,6 +62,9 @@ if (cursor < body.length) {
 </ol>
 
 <style>
+  .annotated-body {
+    font-family: Arial, Helvetica, sans-serif;
+  }
   .annotation-mark {
     background-color: #fef08a;
     cursor: help;
