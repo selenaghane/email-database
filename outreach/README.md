@@ -46,8 +46,8 @@ name, so you can reorder them or add your own alongside.
 | --- | --- | --- |
 | `Name` | yes | Greeting. First word is used, minus any `Dr.`/`Prof.` |
 | `Email` | yes | Rows with a malformed address are skipped |
-| `Type` | yes | `student` or `org` — picks the template |
-| `Org` | orgs | Interpolated into the org subject line and body |
+| `Type` | yes | `student`, `org`, or `creator` — picks the template |
+| `Org` | orgs | The club name. For `creator` rows, their handle |
 | `Personal note` | yes | The one line that makes it not a blast. See below |
 | `Status` | sometimes | Blank or `Queued` = will be drafted. See lifecycle |
 | `Drafted at` | no | Written when the draft is created |
@@ -96,6 +96,23 @@ or emailed twice:
 
 With the trigger installed your only job is adding rows and pressing Send on
 drafts you're happy with.
+
+## Audiences
+
+`Type` picks the wording, and adding a template to `Templates.gs` is all it
+takes to add an audience — any `Type` naming a template is used as-is, and
+anything unrecognised falls back to the student wording rather than failing
+the row.
+
+| Type | For | What `Personal note` has to do |
+| --- | --- | --- |
+| `student` | someone you know or know of | say how you know them |
+| `org` | a club or society | say how you came across them |
+| `creator` | someone with an audience, never met | say what they made, specifically |
+
+The `creator` wording is written for people who get pitched constantly: it
+names what it is not (no fee, no affiliate, no signup) and offers a line they
+can paste to their audience as an alternative to submitting anything.
 
 ## The personal note is the part that matters
 

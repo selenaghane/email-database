@@ -90,7 +90,7 @@ function setUpSheet() {
   sheet.setFrozenRows(1);
 
   const lastRow = Math.max(sheet.getMaxRows(), 500);
-  applyDropdown_(sheet, 'Type', ['student', 'org'], lastRow);
+  applyDropdown_(sheet, 'Type', ['student', 'org', 'creator'], lastRow);
   applyDropdown_(sheet, 'Status', ['Queued', 'Drafted', 'Sent'].concat(TERMINAL), lastRow);
 
   sheet.autoResizeColumns(1, HEADERS.length);
@@ -322,7 +322,11 @@ function findMessage_(query, since) {
 
 /** Picks the template for this row and fills its placeholders. */
 function compose_(row, kind) {
-  const type = String(row['Type']).trim().toLowerCase() === 'org' ? 'org' : 'student';
+  // Any Type that names a template in Templates.gs is used as-is, so adding
+  // a template there is all it takes to add an audience. Anything else falls
+  // back to the student wording rather than failing the row.
+  const raw = String(row['Type']).trim().toLowerCase();
+  const type = TEMPLATES[raw] ? raw : 'student';
   const key = kind === 'followup' ? type + 'Followup' : type;
   const template = TEMPLATES[key];
   if (!template) throw new Error('No template named ' + key + ' in Templates.gs');

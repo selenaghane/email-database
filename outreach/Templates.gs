@@ -15,6 +15,12 @@
  * Template keys map to a row's Type column:
  *   student / studentFollowup   Type = student
  *   org / orgFollowup           Type = org
+ *   creator / creatorFollowup   Type = creator
+ *
+ * The creator pair is for people you have never met who publish to an
+ * audience. {{Org}} holds their handle, and {{Note}} carries the whole
+ * burden of "why you specifically" - there is no shared class or mutual
+ * friend to fall back on.
  *
  * Two things to keep when rewriting these:
  *   - The opt-out line. It is what separates outreach from spam, and it is
@@ -106,6 +112,51 @@ const TEMPLATES = {
       'Following up once on this, then I will leave it.',
       '',
       'The library is at {{SiteUrl}} and the submit form is at {{SubmitUrl}}. If sharing it with {{Org}} members is easy, that would be a real help; if not, no problem at all.',
+      '',
+      '{{FromName}}',
+    ].join('\n'),
+  },
+
+  creator: {
+    subject: 'A free library of student emails that worked',
+
+    body: [
+      'Hi {{FirstName}},',
+      '',
+      '{{Note}}',
+      '',
+      'I am a student building a free, public library of real student outreach emails that actually got replies - cold emails to professors, internship inquiries, podcast and event invites - each annotated with the specific moves it makes. Nothing to sign up for, nothing for sale. Most people write their first cold email having never seen one.',
+      '',
+      'Either of these would help, and one is plenty:',
+      '',
+      '1. If an email of yours got a reply, add it: {{SubmitUrl}}. Two minutes. Paste it exactly as you have it - names and schools are swapped for placeholders before publishing, the reply you got is never published, and credit is optional.',
+      '2. If it is useful to the people who follow you, there is a line at the bottom you can paste into a caption.',
+      '',
+      'You get pitched a lot, so to be clear about what this is not: no fee, no affiliate link, no signup, nothing sponsored. It is a free resource I am trying to fill.',
+      '',
+      'If it is not for you, reply "no thanks" and I will not follow up.',
+      '',
+      'Thanks,',
+      '{{FromName}}',
+      '',
+      '---',
+      'Line to paste, if you want it:',
+      '',
+      'Ever wondered what a cold email that actually works looks like? {{SiteUrl}} is a free collection of real student emails that got replies, annotated line by line. You can add yours anonymously in two minutes: {{SubmitUrl}}',
+    ].join('\n'),
+  },
+
+  creatorFollowup: {
+    subject: 'Re: A free library of student emails that worked',
+
+    body: [
+      'Hi {{FirstName}},',
+      '',
+      'One nudge on this, then I will stop.',
+      '',
+      'The library is at {{SiteUrl}}; adding an email takes about two minutes at {{SubmitUrl}}, anonymously if you prefer.',
+      '',
+      'No hard feelings if you would rather not.',
       '',
       '{{FromName}}',
     ].join('\n'),
