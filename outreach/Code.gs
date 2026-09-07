@@ -1,32 +1,35 @@
 /**
  * Email Library - outreach mail merge.
  *
- * Runs inside Google Apps Script, bound to a Google Sheet. Sends from the
+ * Runs inside Google Apps Script, bound to a Google Sheet. Works with the
  * Gmail account that owns the script, so there are no API keys and no
  * credentials anywhere in this repository.
  *
  * Read outreach/README.md for setup. Edit the copy in Templates.gs, not here.
  *
- * Safety properties this file is built around:
- *   - DRY_RUN is on by default; nothing sends until you turn it off.
- *   - A row is only ever sent an initial email once (Status guards it).
- *   - Replies are detected before follow-ups go out, so nobody who already
- *     answered gets nudged.
- *   - "Do not contact" is terminal and checked on every pass.
+ * By default nothing is ever sent automatically: the script writes each email
+ * into your Gmail drafts, personalised and addressed, and you press Send. The
+ * row then waits until it sees the message in your sent mail before the
+ * follow-up clock starts - so a draft you sit on for three days, or decide not
+ * to send at all, never produces a mistimed or unwanted follow-up.
  */
 
 const CONFIG = {
   SHEET_NAME: 'Contacts',
 
-  // Leave true until a previewNext() run looks right. Nothing sends while true.
-  DRY_RUN: true,
+  /**
+   * 'draft' - write each email to Gmail drafts for you to send by hand.
+   * 'send'  - send immediately, no drafts. Only switch to this once the
+   *           wording has settled and you trust it.
+   * 'off'   - practice mode: work out what would happen, touch nothing.
+   */
+  MODE: 'draft',
 
-  // Gmail's own ceiling is ~100 recipients/day on a consumer account. Staying
-  // well under it leaves room for your normal mail and keeps volume looking
-  // human rather than like a blast.
+  // Rows handled per run. In 'send' mode this also stays under Gmail's ~100
+  // recipients/day ceiling for a consumer account.
   DAILY_CAP: 40,
 
-  // Days to wait after the initial email before a single follow-up.
+  // Days after you actually send before a single follow-up is prepared.
   FOLLOWUP_AFTER_DAYS: 7,
 
   FROM_NAME: '[your name]',
@@ -41,8 +44,9 @@ const HEADERS = [
   'Org',
   'Personal note',
   'Status',
+  'Drafted at',
   'Sent at',
-  'Follow-up sent at',
+  'Follow-up at',
   'Replied at',
   'Notes',
 ];
@@ -50,19 +54,25 @@ const HEADERS = [
 // Statuses that mean "this row is finished" - never contacted again.
 const TERMINAL = ['Replied', 'Submitted', 'Do not contact', 'Bounced'];
 
-// Statuses that mean "this row has not been emailed yet".
+// Statuses that mean "no email has been prepared for this row yet".
 const UNSENT = ['', 'Queued'];
 
 /** Menu shown in the Sheet, so you never have to open the script editor. */
 function onOpen() {
-  SpreadsheetApp.getUi()
+  const drafting = CONFIG.MODE !== 'send';
+  const verb = drafting ? 'Draft' : 'Send';
+
+  const menu = SpreadsheetApp.getUi()
     .createMenu('Outreach')
     .addItem('Set up sheet', 'setUpSheet')
     .addItem('Preview next email', 'previewNext')
     .addSeparator()
-    .addItem('Send queued emails', 'sendOutreach')
-    .addItem('Check for replies', 'checkReplies')
-    .addItem('Send follow-ups', 'sendFollowUps')
+    .addItem(verb + ' queued emails', 'sendOutreach')
+    .addItem(verb + ' follow-ups', 'sendFollowUps');
+
+  if (drafting) menu.addItem('Check what I have sent', 'checkSent');
+
+  menu.addItem('Check for replies', 'checkReplies')
     .addSeparator()
     .addItem('Run daily pass now', 'runDaily')
     .addItem('Install daily trigger', 'installTrigger')
@@ -81,7 +91,7 @@ function setUpSheet() {
 
   const lastRow = Math.max(sheet.getMaxRows(), 500);
   applyDropdown_(sheet, 'Type', ['student', 'org'], lastRow);
-  applyDropdown_(sheet, 'Status', ['Queued'].concat(TERMINAL).concat(['Sent']), lastRow);
+  applyDropdown_(sheet, 'Status', ['Queued', 'Drafted', 'Sent'].concat(TERMINAL), lastRow);
 
   sheet.autoResizeColumns(1, HEADERS.length);
   SpreadsheetApp.getUi().alert(
@@ -90,12 +100,12 @@ function setUpSheet() {
   );
 }
 
-/** Renders the next email that would go out, without sending it. */
+/** Renders the next email that would be prepared, without preparing it. */
 function previewNext() {
   const table = readTable_();
   for (let i = 0; i < table.rows.length; i++) {
     const row = table.rows[i];
-    if (!isSendable_(row) || UNSENT.indexOf(String(row['Status']).trim()) === -1) continue;
+    if (!isSendable_(row) || !isDue_(row, 'initial')) continue;
     const mail = compose_(row, 'initial');
     SpreadsheetApp.getUi().alert(
       'Row ' + row.__rowNumber + ' -> ' + row['Email'] + '\n\n' +
@@ -103,19 +113,47 @@ function previewNext() {
     );
     return;
   }
-  SpreadsheetApp.getUi().alert('Nothing queued to send.');
+  SpreadsheetApp.getUi().alert('Nothing queued.');
 }
 
-/** Sends the initial email to every unsent, sendable row, up to the daily cap. */
+/** Prepares the first email for every queued row, up to the daily cap. */
 function sendOutreach() {
-  const result = processRows_('initial');
-  report_('Initial emails', result);
+  report_(CONFIG.MODE === 'send' ? 'Emails sent' : 'Drafts created', processRows_('initial'));
 }
 
-/** Sends one follow-up to rows that were emailed FOLLOWUP_AFTER_DAYS ago and never replied. */
+/** Prepares one follow-up per contact who has gone quiet since you sent. */
 function sendFollowUps() {
-  const result = processRows_('followup');
-  report_('Follow-ups', result);
+  report_(CONFIG.MODE === 'send' ? 'Follow-ups sent' : 'Follow-up drafts created',
+    processRows_('followup'));
+}
+
+/**
+ * Moves Drafted rows to Sent once the message shows up in your sent mail.
+ *
+ * This is what keeps the follow-up clock honest in draft mode: it starts when
+ * you actually press Send, not when the draft was written. A draft you never
+ * send simply stays Drafted and is never followed up.
+ */
+function checkSent() {
+  const table = readTable_();
+  let found = 0;
+
+  table.rows.forEach(function (row) {
+    if (String(row['Status']).trim() !== 'Drafted') return;
+
+    const email = String(row['Email']).trim().toLowerCase();
+    if (!isEmail_(email)) return;
+
+    const since = row['Drafted at'] instanceof Date ? row['Drafted at'] : null;
+    const message = findMessage_('in:sent to:' + email, since);
+    if (!message) return;
+
+    setCell_(table, row, 'Status', 'Sent');
+    setCell_(table, row, 'Sent at', message.getDate());
+    found++;
+  });
+
+  report_('Newly sent', { count: found, errors: [] });
 }
 
 /**
@@ -135,33 +173,19 @@ function checkReplies() {
     const email = String(row['Email']).trim().toLowerCase();
     if (!isEmail_(email)) return;
 
-    // after: is day-granular, so step back one day and compare exactly below.
-    const after = Utilities.formatDate(
-      new Date(sentAt.getTime() - 24 * 60 * 60 * 1000),
-      Session.getScriptTimeZone(),
-      'yyyy/MM/dd'
-    );
+    if (!findMessage_('from:' + email, sentAt)) return;
 
-    const threads = GmailApp.search('from:' + email + ' after:' + after, 0, 10);
-    const replied = threads.some(function (thread) {
-      return thread.getMessages().some(function (message) {
-        return message.getDate().getTime() > sentAt.getTime() &&
-          message.getFrom().toLowerCase().indexOf(email) !== -1;
-      });
-    });
-
-    if (replied) {
-      setCell_(table, row, 'Status', 'Replied');
-      setCell_(table, row, 'Replied at', new Date());
-      found++;
-    }
+    setCell_(table, row, 'Status', 'Replied');
+    setCell_(table, row, 'Replied at', new Date());
+    found++;
   });
 
-  report_('Replies found', { sent: found, skipped: 0, errors: [] });
+  report_('Replies found', { count: found, errors: [] });
 }
 
-/** One pass in the right order: replies first, so nobody who answered gets nudged. */
+/** One pass, in the order that keeps rows from being nudged wrongly. */
 function runDaily() {
+  if (CONFIG.MODE !== 'send') checkSent();
   checkReplies();
   sendFollowUps();
   sendOutreach();
@@ -182,59 +206,76 @@ function removeTrigger() {
 // ---------------------------------------------------------------- internals
 
 /**
- * Walks the sheet sending one kind of email. Returns counts plus any per-row
- * errors, so a single bad address never aborts the whole run.
+ * Walks the sheet preparing one kind of email. Returns a count plus any
+ * per-row errors, so a single bad address never aborts the whole run.
  */
 function processRows_(kind) {
   const table = readTable_();
-  const quota = MailApp.getRemainingDailyQuota();
-  let budget = Math.min(CONFIG.DAILY_CAP, quota);
-  const result = { sent: 0, skipped: 0, errors: [] };
+  const sending = CONFIG.MODE === 'send';
+
+  // Drafts cost no send quota, so only real sends are checked against it.
+  let budget = sending
+    ? Math.min(CONFIG.DAILY_CAP, MailApp.getRemainingDailyQuota())
+    : CONFIG.DAILY_CAP;
+
+  const result = { count: 0, errors: [] };
 
   for (let i = 0; i < table.rows.length; i++) {
     if (budget <= 0) break;
     const row = table.rows[i];
-    if (!isSendable_(row)) { result.skipped++; continue; }
-    if (!isDue_(row, kind)) { result.skipped++; continue; }
+    if (!isSendable_(row) || !isDue_(row, kind)) continue;
 
     const mail = compose_(row, kind);
 
-    if (CONFIG.DRY_RUN) {
-      Logger.log('[DRY RUN] -> %s | %s', row['Email'], mail.subject);
-      result.sent++;
+    if (CONFIG.MODE === 'off') {
+      Logger.log('[practice] %s | %s', row['Email'], mail.subject);
+      result.count++;
       budget--;
       continue;
     }
 
     try {
-      GmailApp.sendEmail(row['Email'], mail.subject, mail.body, {
-        name: CONFIG.FROM_NAME,
-        replyTo: CONFIG.REPLY_TO,
-      });
+      const options = { name: CONFIG.FROM_NAME, replyTo: CONFIG.REPLY_TO };
+      if (sending) {
+        GmailApp.sendEmail(row['Email'], mail.subject, mail.body, options);
+      } else {
+        GmailApp.createDraft(row['Email'], mail.subject, mail.body, options);
+      }
     } catch (err) {
       result.errors.push(row['Email'] + ': ' + err.message);
-      setCell_(table, row, 'Notes', 'Send failed: ' + err.message);
+      setCell_(table, row, 'Notes', 'Failed: ' + err.message);
       continue;
     }
 
-    if (kind === 'initial') {
-      setCell_(table, row, 'Status', 'Sent');
-      setCell_(table, row, 'Sent at', new Date());
-    } else {
-      setCell_(table, row, 'Follow-up sent at', new Date());
-    }
-
-    result.sent++;
+    stamp_(table, row, kind, sending);
+    result.count++;
     budget--;
   }
 
   return result;
 }
 
-/** A row is sendable if it has a usable address and is not finished or opted out. */
+/** Records what just happened to a row, which is what stops it repeating. */
+function stamp_(table, row, kind, sending) {
+  const now = new Date();
+
+  if (kind === 'followup') {
+    setCell_(table, row, 'Follow-up at', now);
+    return;
+  }
+
+  if (sending) {
+    setCell_(table, row, 'Status', 'Sent');
+    setCell_(table, row, 'Sent at', now);
+  } else {
+    setCell_(table, row, 'Status', 'Drafted');
+    setCell_(table, row, 'Drafted at', now);
+  }
+}
+
+/** A row is workable if it has a usable address and is not finished. */
 function isSendable_(row) {
-  const status = String(row['Status']).trim();
-  if (TERMINAL.indexOf(status) !== -1) return false;
+  if (TERMINAL.indexOf(String(row['Status']).trim()) !== -1) return false;
   return isEmail_(String(row['Email']).trim());
 }
 
@@ -242,17 +283,41 @@ function isSendable_(row) {
 function isDue_(row, kind) {
   const status = String(row['Status']).trim();
 
+  // Drafted rows are waiting on you, not on the script.
   if (kind === 'initial') return UNSENT.indexOf(status) !== -1;
 
-  // Follow-up: sent, never followed up, and enough days have passed.
+  // A follow-up needs a real send to count from, so Drafted rows are skipped.
   if (status !== 'Sent') return false;
-  if (row['Follow-up sent at']) return false;
+  if (row['Follow-up at']) return false;
 
   const sentAt = row['Sent at'];
   if (!(sentAt instanceof Date)) return false;
 
-  const daysSince = (Date.now() - sentAt.getTime()) / (24 * 60 * 60 * 1000);
-  return daysSince >= CONFIG.FOLLOWUP_AFTER_DAYS;
+  return (Date.now() - sentAt.getTime()) / (24 * 60 * 60 * 1000) >= CONFIG.FOLLOWUP_AFTER_DAYS;
+}
+
+/**
+ * First Gmail message matching a query that is strictly newer than `since`.
+ * Gmail's after: filter is day-granular, so it is used to narrow the search
+ * and the exact comparison is done on the message itself.
+ */
+function findMessage_(query, since) {
+  let scoped = query;
+  if (since instanceof Date) {
+    const from = new Date(since.getTime() - 24 * 60 * 60 * 1000);
+    scoped += ' after:' + Utilities.formatDate(from, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+  }
+
+  const threads = GmailApp.search(scoped, 0, 10);
+  for (let t = 0; t < threads.length; t++) {
+    const messages = threads[t].getMessages();
+    for (let m = 0; m < messages.length; m++) {
+      if (!(since instanceof Date) || messages[m].getDate().getTime() > since.getTime()) {
+        return messages[m];
+      }
+    }
+  }
+  return null;
 }
 
 /** Picks the template for this row and fills its placeholders. */
@@ -312,7 +377,7 @@ function readTable_() {
 
   HEADERS.forEach(function (required) {
     if (header.indexOf(required) === -1) {
-      throw new Error('Sheet is missing the "' + required + '" column.');
+      throw new Error('Sheet is missing the "' + required + '" column. Run Outreach > Set up sheet.');
     }
   });
 
@@ -344,8 +409,12 @@ function applyDropdown_(sheet, column, options, lastRow) {
 }
 
 function report_(label, result) {
-  const lines = [label + ': ' + result.sent + (CONFIG.DRY_RUN ? ' (dry run, nothing sent)' : ' sent')];
-  if (result.errors.length) lines.push('Errors:\n' + result.errors.join('\n'));
+  const lines = [label + ': ' + result.count + (CONFIG.MODE === 'off' ? ' (practice mode)' : '')];
+  if (CONFIG.MODE === 'draft' && result.count > 0) {
+    lines.push('They are in your Gmail drafts. Read each one, then press Send.');
+  }
+  if (result.errors && result.errors.length) lines.push('Errors:\n' + result.errors.join('\n'));
+
   Logger.log(lines.join('\n'));
   try {
     SpreadsheetApp.getUi().alert(lines.join('\n\n'));

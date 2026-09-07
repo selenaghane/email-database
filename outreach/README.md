@@ -1,11 +1,11 @@
 # Outreach mail merge
 
 Asks students and student orgs to submit an email to the library. Runs as a
-Google Apps Script bound to a Google Sheet, sending from your own Gmail — no
-server, no API keys, nothing secret in this repo.
+Google Apps Script bound to a Google Sheet, working through your own Gmail —
+no server, no API keys, nothing secret in this repo.
 
-Gmail allows roughly 100 recipients/day on a consumer account; `DAILY_CAP` is
-set to 40. Anything left over rolls to the next run.
+**Nothing is sent automatically.** By default the script writes each email into
+your Gmail drafts, personalised and addressed, and you press Send yourself.
 
 ## Setup (about ten minutes, once)
 
@@ -18,13 +18,24 @@ set to 40. Anything left over rolls to the next run.
    `SITE_URL` while you're there.
 5. Save, then reload the Sheet. An **Outreach** menu appears in the menu bar.
 6. **Outreach → Set up sheet.** Google will ask you to authorize the script —
-   it needs Gmail send access and access to this spreadsheet. Approve it. The
+   it needs Gmail access and access to this spreadsheet. Approve it. The
    "unverified app" warning is expected for a script you wrote yourself:
    *Advanced → Go to (project) → Allow*.
-7. Add contacts (columns below), or paste in `sample-contacts.csv` as a
-   starting point.
-8. **Outreach → Preview next email.** Read it end to end.
-9. Only once that looks right, set `DRY_RUN: false` in `Code.gs`.
+7. Add contacts (columns below), or paste in `sample-contacts.csv`.
+8. **Outreach → Preview next email**, then **Draft queued emails**.
+
+## Modes
+
+`CONFIG.MODE` decides what "prepare an email" means:
+
+| Mode | What happens |
+| --- | --- |
+| `draft` *(default)* | Writes a Gmail draft. You read it and press Send |
+| `send` | Sends immediately. Only worth switching to once the copy has settled |
+| `off` | Practice mode — works out what it would do, touches nothing |
+
+Menu labels follow the mode, so in `send` mode the menu reads "Send queued
+emails" rather than "Draft queued emails".
 
 ## Columns
 
@@ -34,46 +45,57 @@ name, so you can reorder them or add your own alongside.
 | Column | You fill | What it does |
 | --- | --- | --- |
 | `Name` | yes | Greeting. First word is used, minus any `Dr.`/`Prof.` |
-| `Email` | yes | Rows with a malformed address are skipped, not sent |
+| `Email` | yes | Rows with a malformed address are skipped |
 | `Type` | yes | `student` or `org` — picks the template |
 | `Org` | orgs | Interpolated into the org subject line and body |
 | `Personal note` | yes | The one line that makes it not a blast. See below |
-| `Status` | sometimes | Blank or `Queued` = will send. See lifecycle below |
-| `Sent at` | no | Written on send; the follow-up clock starts here |
-| `Follow-up sent at` | no | Written on follow-up; guarantees only one |
+| `Status` | sometimes | Blank or `Queued` = will be drafted. See lifecycle |
+| `Drafted at` | no | Written when the draft is created |
+| `Sent at` | no | Written when the script sees it in your sent mail |
+| `Follow-up at` | no | Written on follow-up; guarantees only one |
 | `Replied at` | no | Written by the reply check |
-| `Notes` | optional | Yours. Send failures get recorded here too |
+| `Notes` | optional | Yours. Failures get recorded here too |
 
 ## Status lifecycle
 
 ```
-(blank) ──send──> Sent ──7 days, no reply──> Sent + Follow-up sent at
-   │                │
-   │                └──they reply──> Replied ─(you, by hand)─> Submitted
-   │
-   └── Do not contact / Bounced          [terminal: never emailed again]
+(blank) ──script drafts it──> Drafted ──you press Send──> Sent
+                                 │                          │
+                    you never send it: stops here           │
+                                                            ├─ 7 days quiet ─> Sent + Follow-up at
+                                                            └─ they reply ──> Replied ─(you)─> Submitted
+
+Do not contact / Bounced            [terminal: never touched again]
 ```
 
-`Replied`, `Submitted`, `Do not contact`, and `Bounced` are terminal — the
-script skips those rows on every pass. Set `Do not contact` the moment someone
-asks, including a "no thanks" reply; the reply check will have already moved
-them to `Replied`, which stops mail on its own.
+The gap between `Drafted` and `Sent` is the point of draft mode, and the
+follow-up clock deliberately starts at `Sent`, not `Drafted`. So a draft you
+sit on for a week doesn't produce an instant follow-up, and a draft you decide
+not to send produces nothing at all.
+
+`Replied`, `Submitted`, `Do not contact`, and `Bounced` are terminal. Set
+`Do not contact` the moment someone asks; a reply already moves them to
+`Replied`, which stops mail on its own.
 
 ## Running it
 
-Menu items, all safe to click twice — the Status guards mean nothing is sent
-to the same person twice:
+Menu items, all safe to click twice — the Status guards mean nobody is drafted
+or emailed twice:
 
-- **Preview next email** — renders the next queued one, sends nothing.
-- **Send queued emails** — initial emails, up to the cap.
-- **Check for replies** — searches Gmail for mail *from* each contact dated
-  after you emailed them; marks matches `Replied`.
-- **Send follow-ups** — one nudge per contact, `FOLLOWUP_AFTER_DAYS` later.
-- **Run daily pass now** — replies, then follow-ups, then new sends, in that
-  order so nobody who already answered gets nudged.
+- **Preview next email** — renders the next queued one, creates nothing.
+- **Draft queued emails** — writes drafts, up to `DAILY_CAP`.
+- **Check what I have sent** — looks for each draft in your sent mail and
+  moves those rows to `Sent`, recording when you actually sent them.
+- **Check for replies** — searches for mail *from* each contact dated after
+  you emailed them; marks matches `Replied`.
+- **Draft follow-ups** — one nudge per contact, `FOLLOWUP_AFTER_DAYS` after
+  the real send.
+- **Run daily pass now** — sent-check, replies, follow-ups, new drafts, in
+  that order so nobody who already answered gets nudged.
 - **Install daily trigger** — runs that pass every morning around 9am.
 
-Install the trigger and the whole thing runs itself; you just keep adding rows.
+With the trigger installed your only job is adding rows and pressing Send on
+drafts you're happy with.
 
 ## The personal note is the part that matters
 
