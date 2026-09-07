@@ -2,12 +2,8 @@
 id: podcast-invite-professor-after-talk
 category: podcast-invite
 approach: attended-event
-context: >
-  A student who leads communications for a science-and-engineering
-  organization's podcast emailed a professor after attending her talk at a
-  university event, inviting her to be a guest to discuss her clinical
-  research and practice.
-outcome: Recorded the episode; now published on [platform].
+context: Email to recruit podcast guest
+outcome: Secured interview, published podcast episode!
 annotations:
   - quote: 'your "[talk title]" lecture really resonated with me'
     note: Opens with a specific reaction to a specific talk rather than a generic compliment.
