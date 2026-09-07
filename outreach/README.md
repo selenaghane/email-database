@@ -130,6 +130,15 @@ promise that you handle redaction (submitters paste much more readily once
 they know they don't have to censor anything — which is exactly how `/submit`
 is written).
 
+## Other channels
+
+- `dm.md` — Instagram and TikTok. The script builds each message into a cell
+  on a second `DMs` tab; sending is manual, because neither platform allows
+  messaging strangers through an API and the tools that claim otherwise get
+  accounts banned.
+- `reddit.md` — a value-first post, a comment version, a note to moderators,
+  and where to post.
+
 ## Keep the real list out of git
 
 `outreach/contacts.csv` is gitignored. The live list belongs in the Sheet, not

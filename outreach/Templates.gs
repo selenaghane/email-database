@@ -163,3 +163,40 @@ const TEMPLATES = {
   },
 
 };
+
+/**
+ * Direct-message copy.
+ *
+ * DMs are not email and should not read like it. Three differences drive the
+ * wording below:
+ *
+ *   - No link in the first message. A link from a stranger reads as spam to
+ *     the recipient and to the platform, and a DM from someone you do not
+ *     follow lands in Requests either way. Ask first, link once they answer.
+ *   - Short enough to read without tapping "more" - roughly 400 characters.
+ *   - Lowercase and unpunctuated is normal here. Formal reads as automated.
+ *
+ * Placeholders are the same as the email templates, plus {{Handle}}.
+ */
+const DM_TEMPLATES = {
+
+  instagram: [
+    'hi {{FirstName}} - {{Note}}',
+    '',
+    "i'm a student building a free collection of real student cold emails that got replies - to professors, for internships - annotated with what each one does. no signup, nothing sold.",
+    '',
+    'did one of yours ever get a yes? i\'d love to include it - two minutes, names and schools swapped for placeholders, anonymous if you want. can send the link if you\'re interested.',
+  ].join('\n'),
+
+  tiktok: [
+    'hi {{FirstName}} - {{Note}}',
+    '',
+    "i'm collecting real student cold emails that actually got replies and annotating what each one does. it's free, no signup.",
+    '',
+    'if one of yours ever worked, would you let me include it? two minutes, anonymous if you want. can send the link if you\'re interested.',
+  ].join('\n'),
+
+  followUp: [
+    'hey {{FirstName}}, floating this up once in case it got buried - no worries at all if not your thing.',
+  ].join('\n'),
+};

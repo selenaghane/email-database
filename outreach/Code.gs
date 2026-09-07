@@ -16,6 +16,7 @@
 
 const CONFIG = {
   SHEET_NAME: 'Contacts',
+  DM_SHEET_NAME: 'DMs',
 
   /**
    * 'draft' - write each email to Gmail drafts for you to send by hand.
@@ -51,6 +52,18 @@ const HEADERS = [
   'Notes',
 ];
 
+const DM_HEADERS = [
+  'Handle',
+  'Platform',
+  'Name',
+  'What they posted',
+  'Message',
+  'Follow-up',
+  'Status',
+  'Sent on',
+  'Notes',
+];
+
 // Statuses that mean "this row is finished" - never contacted again.
 const TERMINAL = ['Replied', 'Submitted', 'Do not contact', 'Bounced'];
 
@@ -71,6 +84,11 @@ function onOpen() {
     .addItem(verb + ' follow-ups', 'sendFollowUps');
 
   if (drafting) menu.addItem('Check what I have sent', 'checkSent');
+
+  menu.addSeparator()
+    .addItem('Set up DM sheet', 'setUpDmSheet')
+    .addItem('Build DM messages', 'buildDmMessages')
+    .addSeparator();
 
   menu.addItem('Check for replies', 'checkReplies')
     .addSeparator()
@@ -201,6 +219,109 @@ function removeTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     if (trigger.getHandlerFunction() === 'runDaily') ScriptApp.deleteTrigger(trigger);
   });
+}
+
+
+// ---------------------------------------------------------------- DMs
+//
+// Instagram and TikTok cannot be automated: neither offers an API for
+// messaging people who have not messaged you first, and the tools that claim
+// otherwise drive a logged-in session in breach of both platforms' terms,
+// which gets accounts restricted. So the script does the half that can be
+// done - writing each message, personalised - and you send them by hand.
+
+/** Creates the DMs sheet. Safe to re-run. */
+function setUpDmSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.DM_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.DM_SHEET_NAME);
+
+  sheet.getRange(1, 1, 1, DM_HEADERS.length).setValues([DM_HEADERS]).setFontWeight('bold');
+  sheet.setFrozenRows(1);
+
+  const lastRow = Math.max(sheet.getMaxRows(), 500);
+  applyDropdownTo_(sheet, DM_HEADERS, 'Platform', ['instagram', 'tiktok'], lastRow);
+  applyDropdownTo_(sheet, DM_HEADERS, 'Status',
+    ['Queued', 'Sent', 'Replied', 'Ignored', 'Do not contact'], lastRow);
+
+  // Messages are long; let them wrap rather than spill across the sheet.
+  ['Message', 'Follow-up'].forEach(function (name) {
+    const col = DM_HEADERS.indexOf(name) + 1;
+    sheet.setColumnWidth(col, 380);
+    sheet.getRange(2, col, lastRow - 1, 1).setWrap(true);
+  });
+
+  SpreadsheetApp.getUi().alert(
+    'DM sheet ready.\n\nAdd handles and one line each in "What they posted", ' +
+    'then use Outreach > Build DM messages.'
+  );
+}
+
+/**
+ * Fills the Message column for queued rows, and Follow-up for rows already
+ * sent. Nothing is transmitted - you copy the cell and send it yourself.
+ */
+function buildDmMessages() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.DM_SHEET_NAME);
+  if (!sheet) throw new Error('No DM sheet yet. Run Outreach > Set up DM sheet.');
+
+  const values = sheet.getDataRange().getValues();
+  const header = values[0].map(function (h) { return String(h).trim(); });
+  const at = function (row, name) { return row[header.indexOf(name)]; };
+
+  let built = 0;
+  let missing = 0;
+
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    const handle = String(at(row, 'Handle')).trim();
+    if (!handle) continue;
+
+    const status = String(at(row, 'Status')).trim();
+    if (status === 'Do not contact' || status === 'Replied') continue;
+
+    const note = String(at(row, 'What they posted')).trim();
+    const platform = String(at(row, 'Platform')).trim().toLowerCase();
+
+    const values_ = {
+      FirstName: firstName_(String(at(row, 'Name')).trim() || handle.replace(/^@/, '')),
+      Handle: handle,
+      Note: note,
+      FromName: CONFIG.FROM_NAME,
+      SiteUrl: CONFIG.SITE_URL,
+      SubmitUrl: CONFIG.SITE_URL + '/submit',
+    };
+
+    if (status === 'Sent') {
+      if (!String(at(row, 'Follow-up')).trim()) {
+        setAt_(sheet, header, r + 1, 'Follow-up', render_(DM_TEMPLATES.followUp, values_));
+        built++;
+      }
+      continue;
+    }
+
+    // The note is the whole message. Without it there is nothing to send.
+    if (!note) { missing++; continue; }
+
+    const template = DM_TEMPLATES[platform] || DM_TEMPLATES.instagram;
+    setAt_(sheet, header, r + 1, 'Message', render_(template, values_));
+    if (!status) setAt_(sheet, header, r + 1, 'Status', 'Queued');
+    built++;
+  }
+
+  const lines = ['Messages built: ' + built];
+  if (missing) {
+    lines.push(missing + ' row(s) skipped with no "What they posted" line. ' +
+      'That sentence is the message - without it there is nothing worth sending.');
+  }
+  lines.push('Copy a Message cell, send it yourself, then set Status to Sent.');
+  SpreadsheetApp.getUi().alert(lines.join('\n\n'));
+}
+
+function setAt_(sheet, header, rowNumber, column, value) {
+  const col = header.indexOf(column) + 1;
+  if (col === 0) return;
+  sheet.getRange(rowNumber, col).setValue(value);
 }
 
 // ---------------------------------------------------------------- internals
@@ -404,7 +525,11 @@ function setCell_(table, row, column, value) {
 }
 
 function applyDropdown_(sheet, column, options, lastRow) {
-  const col = HEADERS.indexOf(column) + 1;
+  applyDropdownTo_(sheet, HEADERS, column, options, lastRow);
+}
+
+function applyDropdownTo_(sheet, headers, column, options, lastRow) {
+  const col = headers.indexOf(column) + 1;
   const rule = SpreadsheetApp.newDataValidation()
     .requireValueInList(options, true)
     .setAllowInvalid(false)
