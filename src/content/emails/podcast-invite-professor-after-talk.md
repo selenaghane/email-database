@@ -2,8 +2,8 @@
 id: podcast-invite-professor-after-talk
 category: podcast-invite
 approach: attended-event
-context: Email to recruit podcast guest
-outcome: Secured interview, published podcast episode!
+context: Recruit professor as podcast guest
+outcome: Secured interview with professor, published 50 minute podcast episode
 annotations:
   - quote: 'your "[talk title]" lecture really resonated with me'
     note: Opens with a specific reaction to a specific talk rather than a generic compliment.
